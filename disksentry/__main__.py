@@ -139,13 +139,20 @@ def main(argv=None):
         except Exception:
             pass
 
-    # 公共参数：允许出现在子命令之前或之后
+    # 公共参数：允许出现在子命令之前或之后。
+    # 关键 1：default 必须用 SUPPRESS —— 子解析器解析后会把自己命名空间的全部
+    #   属性整批拷回主命名空间，普通默认值(None/False)会覆盖"参数写在子命令前"
+    #   时已解析的值（曾因此静默丢弃 --data-dir，写错真实配置目录）。
+    # 关键 2：不能用主解析器 set_defaults(data_dir=None) 兜底 —— set_defaults
+    #   会改写共享 action 的 default，把 SUPPRESS 又变回 None，修复自我抵消。
+    #   裸调用的兜底改在 parse 之后用 getattr 完成。
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--data-dir", help="数据目录（默认 %%LOCALAPPDATA%%\\DiskSentry）")
-    common.add_argument("--portable", action="store_true",
+    common.add_argument("--data-dir", default=argparse.SUPPRESS,
+                        help="数据目录（默认 %%LOCALAPPDATA%%\\DiskSentry）")
+    common.add_argument("--portable", action="store_true", default=argparse.SUPPRESS,
                         help="便携模式（exe 版默认即是：数据存放在 exe 同级 data\\ 下；"
                              "此参数仅对源码运行生效）")
-    common.add_argument("--verbose", action="store_true")
+    common.add_argument("--verbose", action="store_true", default=argparse.SUPPRESS)
 
     parser = argparse.ArgumentParser(
         prog="disksentry", description="DiskSentry 磁盘增长监控",
@@ -175,8 +182,10 @@ def main(argv=None):
     p_cfg.add_argument("--set", nargs="*", metavar="key=value")
 
     args = parser.parse_args(argv)
-    data_dir = Path(args.data_dir) if args.data_dir else default_data_dir(args.portable)
-    setup_logging(data_dir, args.verbose)
+    # SUPPRESS 默认值意味着属性可能不存在，裸调用兜底在这里完成
+    data_dir_arg = getattr(args, "data_dir", None)
+    data_dir = Path(data_dir_arg) if data_dir_arg else default_data_dir(getattr(args, "portable", False))
+    setup_logging(data_dir, getattr(args, "verbose", False))
     cfg = Config(data_dir / "config.json")
 
     if args.cmd in (None, "run"):
