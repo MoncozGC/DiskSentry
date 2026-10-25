@@ -80,7 +80,10 @@ monitor/
 ├── tests/                  单元测试（unittest，见 §5）
 │   ├── test_store.py       差分算法 / 查询 / 清理
 │   ├── test_scanner.py     遍历 / 排除 / 计数
-│   └── test_server.py      API 全链路（含真实扫描两轮制造差分）
+│   ├── test_server.py      API 全链路（含真实扫描两轮制造差分）
+│   ├── test_paths.py       数据目录规则（exe 同级 / 不可写降级）
+│   ├── test_cli.py         CLI 参数位置回归（argparse 子解析器覆盖坑）
+│   └── test_duplicates.py  重复文件分组 / 回收站删除 / 删除记录 API
 │
 ├── .venv-build/            打包专用虚拟环境（git 忽略，build.bat 自动创建）
 ├── build/ dist/            PyInstaller 中间产物与 exe（git 忽略）
@@ -100,16 +103,105 @@ monitor/
 | `data.db` | SQLite 数据库（WAL 模式；另有 `data.db-wal/-shm` 临时文件属正常） |
 | `disksentry.log` | 运行日志，2MB×2 自动轮转 |
 
-### 2.2 数据库表结构（`store.py::SCHEMA`）
+### 2.2 数据库表结构（`store.py::SCHEMA`，SQLite · WAL 模式）
 
-| 表 | 用途 |
-| --- | --- |
-| `files` | 当前文件状态快照（root+path 主键，size/mtime/首末次见到时间） |
-| `changes` | ★ 变更日志（ts/root/path/kind/old/new/delta），一切查询的源头 |
-| `scans` | 每轮扫描的元信息（状态 ok/partial/error、耗时、增删改计数） |
-| `disk_snapshots` | 每轮扫描记录的卷级用量（趋势图数据源） |
-| `alerts` | 增速告警记录 |
-| `meta` | 预留 |
+通用约定：**时间戳一律为 Unix 秒（REAL）**；路径为净化后的绝对路径（含非法代理字符时以 `?` 替换）；
+数据库开启 WAL（`data.db-wal/-shm` 为正常伴生文件），读写各用独立连接。
+
+#### files — 当前文件状态快照（每轮扫描后即为最新全量）
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| root | TEXT | 联合主键 | 监控根（规范化，盘符带尾部 `\`，如 `C:\`） |
+| path | TEXT | 联合主键 | 文件绝对路径（`root` 之下） |
+| size | INTEGER | NOT NULL | 文件逻辑大小（字节，st_size） |
+| mtime | REAL | NOT NULL | 文件修改时间；仅文件大小变化时更新 |
+| first_seen | REAL | NOT NULL | 首次出现在扫描中的时间 |
+| last_seen | REAL | NOT NULL | 最近一次出现/变更时间；**不做每轮全量刷新**（百万行 UPDATE 代价过高），仅新增与变更时写 |
+
+`WITHOUT ROWID` 表。单根"是否已有基线"的判定不在本表（空目录首扫本表无行），见 `roots`。
+
+#### changes — ★ 变更日志（一切时间窗查询的事实来源）
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| id | INTEGER | PK 自增 | 事件顺序 |
+| ts | REAL | NOT NULL | 事件时间 = 发现该事件的扫描时间（精度 ±1 个扫描间隔） |
+| root | TEXT | NOT NULL | 所在监控根 |
+| path | TEXT | NOT NULL | 文件绝对路径 |
+| kind | TEXT | NOT NULL | 事件类型：`new` 新建 / `grow` 增长 / `shrink` 缩小 / `delete` 删除 |
+| old_size | INTEGER | 可空 | 变更前大小；`new` 事件为 NULL |
+| new_size | INTEGER | 可空 | 变更后大小；`delete` 事件为 NULL |
+| delta | INTEGER | NOT NULL | 净变化字节（删除为负） |
+
+索引：`idx_changes_ts(ts)`（时间窗查询）、`idx_changes_root_ts(root, ts)`（按盘筛选）。
+首次基线扫描不产生记录；目录排行/文件排行按本表聚合（`store.top_dirs`）。
+
+#### roots — 基线标记
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| root | TEXT | PK | 监控根 |
+| baseline_at | REAL | NOT NULL | 首次扫描时间 |
+
+"该根至少扫过一次"即视为已建基线（即使当时目录为空）；老库兼容：`files` 有行同样视为有基线。
+
+#### scans — 每轮扫描元信息
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| id | INTEGER | PK 自增 | 扫描轮次 |
+| started_at | REAL | NOT NULL | 开始时间 |
+| finished_at | REAL | 可空 | 结束时间；`running` 状态为 NULL |
+| status | TEXT | NOT NULL | `running` / `ok` / `partial`（部分根失败）/ `error` |
+| error | TEXT | 可空 | 失败详情（各根错误以 `;` 连接） |
+| file_count | INTEGER | | 本轮所有根文件总数 |
+| total_size | INTEGER | | 本轮所有根总字节数 |
+| added / removed / changed | INTEGER | | 新增/删除/大小变化的文件数（基线轮 added=全部） |
+
+#### disk_snapshots — 卷级用量快照（趋势图数据源）
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| root | TEXT | 联合主键 | 监控根 |
+| ts | REAL | 联合主键 | 快照时间（每根每轮一条，扫描前记录） |
+| used | INTEGER | 可空 | 已用字节（total - free，`shutil.disk_usage`） |
+| total | INTEGER | 可空 | 总容量 |
+| free | INTEGER | 可空 | 剩余空间 |
+
+#### alerts — 增长告警
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| id | INTEGER | PK 自增 | |
+| ts | REAL | NOT NULL | 告警时间 |
+| root | TEXT | 可空 | 触发的监控根 |
+| message | TEXT | | 文案（如 `C:\ 增速 6.2 GB/小时，超过阈值`） |
+
+#### deletions — 删除记录（重复文件清理的操作审计）
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| id | INTEGER | PK 自增 | |
+| ts | REAL | NOT NULL | 删除时间 |
+| path | TEXT | NOT NULL | 被删文件的完整路径（已进回收站） |
+| size | INTEGER | 可空 | 删除时的文件大小（缓存结果缺失时为 NULL） |
+| source | TEXT | NOT NULL | 删除来源，当前仅 `dup`；预留扩展 |
+
+索引：`idx_deletions_ts(ts)`。**不随保留策略清理**（属操作审计，量级小）。
+
+#### meta — 预留键值表
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| key | TEXT | PK | |
+| value | TEXT | | 预留（如未来 schema 版本号） |
+
+**保留策略**（`store.prune`，每日执行）：`changes`、`disk_snapshots`、`alerts`、
+已结束的 `scans` 按 `retention_days`（默认 90 天）清理；`files`/`roots` 为当前态、
+`deletions` 为审计记录，均不清理。
+
+手工查看示例见 §4.3。
 
 ---
 
