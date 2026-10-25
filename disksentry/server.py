@@ -2,11 +2,12 @@
 import json
 import logging
 import mimetypes
+import os
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, store, winutil
+from . import __version__, duplicates, store, winutil
 from .paths import web_dir
 
 log = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ class _Ctx:
         self.scheduler = scheduler
         self.status = status
         self.db_path = db_path
+        self.dup = duplicates.DupScanManager()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -70,7 +72,8 @@ class Handler(BaseHTTPRequestHandler):
                 params = parse_qs(parsed.query)
                 return self._api_get(path, params)
             if path.startswith("/vendor/") or path in (
-                    "/app.js", "/style.css", "/favicon.svg", "/favicon.png"):
+                    "/app.js", "/dup.js", "/style.css", "/favicon.svg",
+                    "/favicon.png", "/dup.html"):
                 return self._static(path.lstrip("/"))
             return self._error(404, "not found")
         except ValueError as e:
@@ -91,6 +94,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._post_config(body)
             if path == "/api/scan":
                 return self._post_scan()
+            if path == "/api/dup/scan":
+                return self._post_dup_scan(body)
+            if path == "/api/dup/delete":
+                return self._post_dup_delete(body)
+            if path == "/api/dup/reveal":
+                return self._post_dup_reveal(body)
             return self._error(404, "not found")
         except (ValueError, json.JSONDecodeError) as e:
             return self._error(400, f"参数错误: {e}")
@@ -140,6 +149,15 @@ class Handler(BaseHTTPRequestHandler):
                 rows = store.recent_changes(conn, since, order=order, limit=limit,
                                             offset=offset, root=root)
                 return self._json({"window_hours": hours, "changes": rows})
+            if path == "/api/dup/status":
+                return self._json(self.ctx.dup.status())
+            if path == "/api/dup/result":
+                st = self.ctx.dup.status()
+                if st.get("error"):
+                    return self._error(500, st["error"])
+                if not st.get("has_result"):
+                    return self._error(404, "尚未完成扫描")
+                return self._json(self.ctx.dup.result)
             return self._error(404, "not found")
         finally:
             conn.close()
@@ -204,6 +222,41 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(400, "当前模式不支持触发扫描")
         self.ctx.scheduler.request_scan()
         return self._json({"ok": True}, 202)
+
+    # ---------------------------------------------------------- 重复文件
+    def _post_dup_scan(self, body):
+        root = (body or {}).get("root") if isinstance(body, dict) else None
+        if not root or not isinstance(root, str):
+            return self._error(400, "缺少 root 参数")
+        try:
+            started = self.ctx.dup.start(root)
+        except ValueError as e:
+            return self._error(400, str(e))
+        if not started:
+            return self._json({"ok": False, "detail": "已有扫描进行中"}, 409)
+        return self._json({"ok": True}, 202)
+
+    def _post_dup_delete(self, body):
+        paths = (body or {}).get("paths") if isinstance(body, dict) else None
+        if not isinstance(paths, list) or not paths:
+            return self._error(400, "缺少 paths 列表")
+        if len(paths) > 5000:
+            return self._error(400, "单次最多删除 5000 个文件")
+        for p in paths:
+            if not isinstance(p, str) or not os.path.isabs(p):
+                return self._error(400, f"非法路径: {p!r}")
+        result = duplicates.recycle_files(paths)
+        self.ctx.dup.drop_deleted(result["deleted"])
+        return self._json(result)
+
+    def _post_dup_reveal(self, body):
+        path = (body or {}).get("path") if isinstance(body, dict) else None
+        if not path or not isinstance(path, str) or not os.path.isabs(path):
+            return self._error(400, "非法路径")
+        if not os.path.exists(path):
+            return self._error(404, "文件不存在")
+        ok = duplicates.reveal_in_explorer(path)
+        return self._json({"ok": ok})
 
 
 def make_server(cfg, scheduler, status, db_path, port: int):

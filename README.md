@@ -9,6 +9,9 @@
 "增长最快的目录 Top N"、"增长最快的文件" 和完整变更明细。本地 Web 仪表盘展示趋势图表。
 
 - **零第三方依赖**：纯 Python 标准库 + 本地 d3.js，无需 pip install 任何运行库
+- **重复文件清理**：仪表盘右上角入口。MD5 完全重复与"同名版本"（名字相近内容不同，
+  按时间排序）分组展示，自动预选可删项（每组保留最新修改的文件），确认后批量
+  删除进**回收站**（可恢复），每个文件可一键定位到资源管理器
 - **低负载**：扫描期间进程自动切到 Windows 后台优先级（CPU + 磁盘 IO 最低，
   与系统索引服务同机制），系统繁忙时自动让路；可配置"仅空闲时扫描"
 - **正确遍历**：跳过符号链接 / junction（防循环、防重复计数），无权限目录静默跳过，
@@ -90,6 +93,10 @@ DiskSentry.exe config --set interval_minutes=30
 | `GET /api/changes?window=24&order=delta` | 变更列表（order=ts\|delta，支持分页） |
 | `POST /api/config` | 修改配置（JSON body） |
 | `POST /api/scan` | 触发立即扫描 |
+| `POST /api/dup/scan` | 启动重复文件扫描（body: {"root": 目录}，后台执行） |
+| `GET /api/dup/status` / `GET /api/dup/result` | 重复扫描进度 / 结果（分组） |
+| `POST /api/dup/delete` | 批量删除到回收站（body: {"paths": [...]}） |
+| `POST /api/dup/reveal` | 在资源管理器中定位文件 |
 
 服务只绑定 127.0.0.1，不对外网暴露。
 

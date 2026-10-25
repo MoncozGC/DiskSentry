@@ -239,3 +239,51 @@
 @media (prefers-reduced-motion: reduce){
   #dm-root *{ animation: none !important; transition: none !important; }
 }
+
+/* ============ 重复文件清理页 ============ */
+#dm-root .dup-controls{ margin: 16px 20px 0; }
+#dm-root .dup-root-row{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#dm-root .dup-root-row .form-label{ flex: none; }
+#dm-root #dup-root{
+  flex: 1; min-width: 240px; font: inherit; color: var(--dm-text);
+  background: var(--dm-surface); border: 1px solid var(--dm-border);
+  border-radius: 8px; padding: 6px 10px;
+}
+#dm-root .dup-hint{ margin-top: 8px; font-size: 12px; color: var(--dm-muted); }
+#dm-root .dup-hint b{ color: var(--dm-text); }
+#dm-root .dup-progress{ margin-top: 8px; }
+#dm-root .dup-summary{
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: 14px 20px 0; padding: 10px 15px;
+  background: var(--dm-surface); border: 1px solid var(--dm-border); border-radius: 11px;
+}
+#dm-root .dup-btn-danger{
+  background: var(--dm-danger); border-color: transparent; color: var(--dm-bg); font-weight: 500;
+}
+#dm-root .dup-btn-danger:hover:not([disabled]){ color: var(--dm-bg); opacity: .9; }
+#dm-root .dup-result-msg{
+  margin: 10px 20px 0; padding: 8px 14px; border-radius: 9px; font-size: 12px;
+  background: var(--dm-surface2); color: var(--dm-text);
+  border: 1px solid var(--dm-border);
+}
+#dm-root .dup-msg-error{ border-color: var(--dm-danger); color: var(--dm-danger); }
+#dm-root .dup-section{ margin: 14px 20px 0; }
+#dm-root .dup-group{ border: 1px solid var(--dm-surface2); border-radius: 9px; margin-bottom: 12px; overflow: hidden; }
+#dm-root .dup-group-head{
+  display: flex; align-items: center; gap: 12px; padding: 7px 12px; flex-wrap: wrap;
+  background: var(--dm-surface2); font-size: 12px;
+}
+#dm-root .dup-group-check{ display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--dm-muted); flex: none; }
+#dm-root .dup-group-title{ color: var(--dm-muted); }
+#dm-root .dup-group-title b{ color: var(--dm-danger); }
+#dm-root .dup-row{ display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-top: 1px solid var(--dm-surface2); }
+#dm-root .dup-row .dup-path{ flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#dm-root .dup-keep{
+  font-size: 11px; color: var(--dm-success); border: 1px solid var(--dm-success);
+  border-radius: 999px; padding: 0 8px; flex: none;
+}
+#dm-root .dup-check, #dm-root .dup-gcheck{ accent-color: var(--dm-accent); width: 15px; height: 15px; flex: none; }
+#dm-root .dup-time, #dm-root .dup-size{ flex: none; font-size: 12px; }
+#dm-root .dup-empty{ color: var(--dm-muted); text-align: center; padding: 22px 0; }
+#dm-root .dup-controls, #dm-root .dup-section{ margin-bottom: 0; }
+#dm-root .dup-section:last-of-type{ margin-bottom: 20px; }

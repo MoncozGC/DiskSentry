@@ -61,6 +61,7 @@ monitor/
 │   ├── scanner.py          目录遍历器 + ScanStatus 进度上报
 │   ├── store.py            ★ SQLite：建表、快照差分、全部查询、清理
 │   ├── scheduler.py        调度循环、单根失败隔离、告警评估、保留策略
+│   ├── duplicates.py       重复文件引擎：MD5 分桶比对/同名版本/回收站删除/资源管理器定位
 │   ├── server.py           本地 HTTP 服务：静态页 + JSON API（只绑 127.0.0.1）
 │   └── report.py           终端文字报告（report 命令）
 │
@@ -69,6 +70,7 @@ monitor/
 │   ├── app.js              ★ 全部前端逻辑：API 拉取、渲染、d3 趋势图、交互
 │   ├── style.css           样式，跟随系统深浅色（prefers-color-scheme）
 │   ├── favicon.svg/png     网页图标（由 tools/make_icon.py 生成）
+│   ├── dup.html / dup.js   重复文件清理页（分组列表/预选/批量删除）
 │   └── vendor/d3.min.js    本地 d3 7.9.0（离线可用，勿升级路径写法）
 │
 ├── assets/                 图标资源（icon.ico 供打包，icon.svg 矢量原稿）
@@ -218,7 +220,7 @@ SELECT root, SUM(delta) FROM changes WHERE ts > strftime('%s','now','-24 hours')
 ### 5.1 跑测试
 
 ```bash
-python -m unittest discover -s tests -t . -v     # 全部 27 个，<1 秒
+python -m unittest discover -s tests -t . -v     # 全部 34 个，<2 秒
 ```
 
 三个文件各自覆盖：
@@ -319,6 +321,7 @@ onefile 每次启动要自解压，onedir 则是目录形态、启动快，且 `
 | 新告警通道（如 Windows 通知） | `scheduler.py::_check_alert` | 目前只写 alerts 表；可在此处加 toast/邮件 |
 | 加配置项 | `config.py::DEFAULTS` → `server.py::_post_config`（白名单校验） → 设置对话框（`web/index.html` + `app.js`） → README 配置表 | 四处要同步 |
 | 换 Web 端口/绑定策略 | `server.py::make_server` | 出于安全只绑 127.0.0.1，勿改对外 |
+| 改重复文件功能 | `duplicates.py` + `web/dup.js` | 分组规则在 `scan_directory`；删除走回收站（SHFileOperation） |
 | v2：USN Journal 近实时引擎 | 新模块，产出与 `iter_files` 同形态的变更流 | 架构已预留：采集与存储解耦，`apply_scan` 只认流 |
 
 ### 7.1 差分算法（`store.py::apply_scan`）工作原理

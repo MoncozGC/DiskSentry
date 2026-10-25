@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>重复文件清理 · DiskSentry</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" type="image/png" sizes="32x32">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="dm-root">
+<header class="dm-topbar">
+  <div class="dm-logo"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="dmbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#dmbg)"/><polyline points="11,31 22,21 30,27 46,11" fill="none" stroke="#fff" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/><polygon points="53.5,6.5 49.5,16.5 43.5,10.5" fill="#fff"/><rect x="12" y="40" width="40" height="13" rx="4" fill="#fff"/><circle cx="47" cy="47" r="2.5" fill="#1d4ed8"/></svg>重复文件清理</div>
+  <span class="dm-spacer"></span>
+  <a class="dm-btn" href="/">← 返回仪表盘</a>
+</header>
+
+<section class="dm-panel dup-controls">
+  <div class="dup-root-row">
+    <label class="form-label" for="dup-root">扫描目录</label>
+    <input type="text" id="dup-root" list="dup-roots" placeholder='例如 D:\Downloads（子目录会递归扫描）'>
+    <datalist id="dup-roots"></datalist>
+    <button type="button" class="dm-btn dm-btn-primary" id="dup-scan-btn">扫描重复文件</button>
+  </div>
+  <div class="dup-hint">对比策略：MD5 一致 → 完全重复；文件名相近但内容不同 → 同名版本（按时间排序）。
+    删除均进<b>回收站</b>，可随时恢复。已自动勾选建议删除项（每组保留最新修改的文件），请确认后再执行删除。</div>
+  <div class="dm-status dup-progress" id="dup-progress" hidden aria-live="polite">
+    <span class="dm-status-dot"></span><span id="dup-progress-text"></span>
+  </div>
+</section>
+
+<div class="dup-summary" id="dup-summary" hidden>
+  <span id="dup-summary-text"></span>
+  <button type="button" class="dm-btn dup-btn-danger" id="dup-delete-btn" disabled>删除所选</button>
+</div>
+<div class="dup-result-msg" id="dup-result-msg" hidden role="alert"></div>
+
+<section class="dm-panel dup-section">
+  <div class="dm-panel-head">
+    <span class="dm-panel-title">完全重复</span>
+    <span class="dm-panel-sub">MD5 一致 · 按可释放空间排序</span>
+  </div>
+  <div id="dup-groups"><div class="dup-empty">尚未扫描</div></div>
+</section>
+
+<section class="dm-panel dup-section">
+  <div class="dm-panel-head">
+    <span class="dm-panel-title">同名版本</span>
+    <span class="dm-panel-sub">名字相近 · 内容不同 · 每组按修改时间倒序（最新在前）</span>
+  </div>
+  <div id="sim-groups"><div class="dup-empty">尚未扫描</div></div>
+</section>
+
+</div>
+<script src="/dup.js"></script>
+</body>
+</html>
