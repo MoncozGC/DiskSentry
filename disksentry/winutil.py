@@ -82,7 +82,10 @@ def fixed_drives():
 
 
 def drive_label(root: str) -> str:
-    """取卷标（如 'Windows'、'Data'），失败返回空字符串。"""
+    """取卷标（如 'Windows'、'Data'），失败返回空字符串。
+
+    UI 展示一律以真实卷标为准：没有卷标就只显示盘符，不做兜底命名。
+    """
     k32 = _kernel32()
     if k32 is None:
         return ""
@@ -93,16 +96,6 @@ def drive_label(root: str) -> str:
             return name.value
     except Exception:
         pass
-    return ""
-
-
-def display_label(root: str) -> str:
-    """供 UI 展示的盘名：优先卷标；系统盘无卷标时兜底显示"系统盘"。"""
-    label = drive_label(root)
-    if label:
-        return label
-    if root.rstrip("\\").upper() == os.environ.get("SystemDrive", "").upper():
-        return "系统盘"
     return ""
 
 
