@@ -176,7 +176,7 @@ class Handler(BaseHTTPRequestHandler):
             if root in seen:
                 continue
             seen.add(root)
-            item = {"root": root, "label": winutil.drive_label(root)}
+            item = {"root": root, "label": winutil.display_label(root)}
             try:
                 import shutil
                 usage = shutil.disk_usage(root)

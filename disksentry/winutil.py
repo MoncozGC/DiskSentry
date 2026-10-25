@@ -96,6 +96,16 @@ def drive_label(root: str) -> str:
     return ""
 
 
+def display_label(root: str) -> str:
+    """供 UI 展示的盘名：优先卷标；系统盘无卷标时兜底显示"系统盘"。"""
+    label = drive_label(root)
+    if label:
+        return label
+    if root.rstrip("\\").upper() == os.environ.get("SystemDrive", "").upper():
+        return "系统盘"
+    return ""
+
+
 def idle_seconds() -> float:
     """距上次键鼠输入的秒数；非 Windows 返回 0（视为始终空闲）。"""
     k32 = _kernel32()
