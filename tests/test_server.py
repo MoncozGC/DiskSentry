@@ -80,6 +80,10 @@ class ServerTest(unittest.TestCase):
             self.assertGreater(int(resp.headers["Content-Length"]), 100000)
         with self.get("/style.css") as resp:
             self.assertIn("css", resp.headers["Content-Type"])
+        with self.get("/favicon.svg") as resp:
+            self.assertIn("svg", resp.headers["Content-Type"])
+        with self.get("/favicon.png") as resp:
+            self.assertGreater(int(resp.headers["Content-Length"]), 100)
 
     def test_state_contains_monitored_root(self):
         state = self.get_json("/api/state")

@@ -69,7 +69,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith("/api/"):
                 params = parse_qs(parsed.query)
                 return self._api_get(path, params)
-            if path.startswith("/vendor/") or path in ("/app.js", "/style.css"):
+            if path.startswith("/vendor/") or path in (
+                    "/app.js", "/style.css", "/favicon.svg", "/favicon.png"):
                 return self._static(path.lstrip("/"))
             return self._error(404, "not found")
         except ValueError as e:

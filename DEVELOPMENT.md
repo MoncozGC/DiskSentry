@@ -68,7 +68,12 @@ monitor/
 │   ├── index.html          页面骨架（顶栏/卡片/图表/排行/明细/设置对话框）
 │   ├── app.js              ★ 全部前端逻辑：API 拉取、渲染、d3 趋势图、交互
 │   ├── style.css           样式，跟随系统深浅色（prefers-color-scheme）
+│   ├── favicon.svg/png     网页图标（由 tools/make_icon.py 生成）
 │   └── vendor/d3.min.js    本地 d3 7.9.0（离线可用，勿升级路径写法）
+│
+├── assets/                 图标资源（icon.ico 供打包，icon.svg 矢量原稿）
+├── tools/
+│   └── make_icon.py        图标生成脚本（Pillow，一次性资产生成，非运行时依赖）
 │
 ├── tests/                  单元测试（unittest，见 §5）
 │   ├── test_store.py       差分算法 / 查询 / 清理
@@ -274,6 +279,8 @@ python -m venv .venv-build
 - **入口必须是 `run.py`**：直接把 `disksentry/__main__.py` 当入口会因相对导入
   （`from . import ...`）崩溃——历史上踩过，见 `run.py` 注释
 - `datas=[('web','web')]`：前端打包进 exe；**改了 `web/` 或 `disksentry/` 都要重新打包**
+- `icon='assets/icon.ico'`：exe 图标；想换图标 → 改 `tools/make_icon.py` 的几何/配色
+  → `python tools/make_icon.py` 重新生成 → 重跑 `build.bat`（生成用 Pillow，仅设计时依赖）
 - `console=True`：带控制台（可看日志、关窗退出）。改成 `False` 得无窗口后台版
   （退出需任务管理器），改完重跑 `build.bat`
 - `excludes`：排除 tkinter/unittest 减体积

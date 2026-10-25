@@ -26,5 +26,5 @@ exe = EXE(
     strip=False,
     upx=False,
     console=True,        # 改为 False 即无窗口后台运行（退出需任务管理器）
-    icon=None,
+    icon='assets/icon.ico',
 )
