@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DiskSentry 磁盘增长监控</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="dm-root">
+<header class="dm-topbar">
+  <div class="dm-logo"><svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>DiskSentry 磁盘增长监控</div>
+  <span class="dm-chip" id="dm-version" hidden></span>
+  <span class="dm-spacer"></span>
+  <span class="dm-alert-chip" id="dm-alert-chip" hidden title=""></span>
+  <span class="dm-status" id="dm-status" aria-live="polite">
+    <span class="dm-status-dot"></span><span id="dm-status-text">加载中…</span>
+  </span>
+  <button type="button" class="dm-btn" id="dm-scan-btn" disabled>
+    <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>立即扫描
+  </button>
+  <button type="button" class="dm-btn dm-btn-icon" id="dm-settings-btn" aria-label="监控设置">
+    <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+</header>
+
+<div class="dm-cards" id="dm-cards"></div>
+
+<div class="dm-toolbar">
+  <span class="dm-tlabel">时间窗口</span>
+  <div class="dm-pills" role="group" aria-label="时间窗口">
+    <button type="button" class="dm-pill" data-hours="1">近 1 小时</button>
+    <button type="button" class="dm-pill" data-hours="24" aria-pressed="true">近 24 小时</button>
+    <button type="button" class="dm-pill" data-hours="168">近 7 天</button>
+    <button type="button" class="dm-pill" data-hours="720">近 30 天</button>
+  </div>
+  <span class="dm-spacer"></span>
+  <div class="dm-legend" id="dm-legend" role="group" aria-label="磁盘图例"></div>
+</div>
+
+<div class="dm-main">
+  <section class="dm-panel">
+    <div class="dm-panel-head">
+      <span class="dm-panel-title">容量净增长趋势</span>
+      <span class="dm-panel-sub">相对窗口起点 · GB</span>
+    </div>
+    <div class="dm-chartwrap" id="dm-chartwrap">
+      <div class="dm-chart-empty" id="dm-chart-empty" hidden>暂无数据 · 等待首次扫描</div>
+      <div class="dm-tip" id="dm-tip" role="tooltip"></div>
+    </div>
+  </section>
+  <section class="dm-panel">
+    <div class="dm-panel-head">
+      <span class="dm-panel-title">增长最快的目录</span>
+      <span class="dm-panel-sub">窗口内净增量</span>
+    </div>
+    <div class="dm-rank-list" id="dm-rank"></div>
+  </section>
+</div>
+
+<section class="dm-panel dm-table-panel">
+  <div class="dm-panel-head">
+    <span class="dm-panel-title">变更明细</span>
+    <span class="dm-panel-sub">窗口内捕获的文件与目录事件</span>
+  </div>
+  <div class="dm-table-scroll">
+    <table>
+      <thead>
+        <tr><th>时间</th><th>事件</th><th>路径</th><th style="text-align:right">变化</th><th style="text-align:right">当前大小</th></tr>
+      </thead>
+      <tbody id="dm-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer id="dm-footer"></footer>
+
+<div class="dm-backdrop" id="dm-backdrop" hidden>
+  <div class="dm-dialog" role="dialog" aria-modal="true" aria-labelledby="dm-dialog-title">
+    <h2 id="dm-dialog-title">监控设置</h2>
+    <button type="button" class="dm-btn dm-btn-icon dm-close" id="dm-dialog-close" aria-label="关闭">
+      <svg class="lucide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+    <div class="dm-field">
+      <label>监控的磁盘</label>
+      <div id="dm-disk-checks"></div>
+    </div>
+    <div class="dm-field">
+      <label for="dm-interval">扫描频率</label>
+      <select id="dm-interval">
+        <option value="10">每 10 分钟</option>
+        <option value="30">每 30 分钟</option>
+        <option value="60" selected>每 1 小时</option>
+        <option value="360">每 6 小时</option>
+        <option value="1440">每天</option>
+      </select>
+    </div>
+    <div class="dm-field">
+      <label for="dm-threshold">增长告警阈值（GB / 小时）</label>
+      <input type="number" id="dm-threshold" min="0.5" step="0.5" value="5">
+    </div>
+    <div class="dm-field">
+      <label class="dm-check dm-check-plain">
+        <input type="checkbox" id="dm-idle">
+        <span>仅在电脑空闲时扫描（键鼠无输入 10 分钟）</span>
+      </label>
+    </div>
+    <div class="dm-dialog-actions">
+      <button type="button" class="dm-btn" id="dm-cancel">取消</button>
+      <button type="button" class="dm-btn dm-btn-primary" id="dm-save">保存</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="/vendor/d3.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
