@@ -217,19 +217,39 @@
         return cb.dataset.path;
       });
     if (!paths.length) return;
-    var sizeText = $('#dup-summary-text').textContent;
     if (!window.confirm('确认删除 ' + paths.length + ' 个文件到回收站？\n（可从回收站恢复）')) {
       return;
     }
+    // 分批提交：避免请求体过大，也避免一次删除数千文件时长时间无响应
+    var BATCH = 300;
+    var batches = [];
+    for (var i = 0; i < paths.length; i += BATCH) batches.push(paths.slice(i, i + BATCH));
+
     var btn = $('#dup-delete-btn');
     btn.disabled = true;
-    api('/api/dup/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paths: paths })
-    }).then(function (res) {
-      // 移除已删除的行；组内剩 <2 个（重复组）或 <2 个（版本组）则整组移除
-      (res.deleted || []).forEach(function (p) {
+    var deleted = [], failed = [];
+
+    (function next(bi) {
+      if (bi >= batches.length) return finish();
+      btn.textContent = '正在删除 ' + Math.min((bi + 1) * BATCH, paths.length) +
+        ' / ' + paths.length + ' …';
+      api('/api/dup/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: batches[bi] })
+      }).then(function (res) {
+        deleted = deleted.concat(res.deleted || []);
+        failed = failed.concat(res.failed || []);
+        next(bi + 1);
+      }).catch(function (err) {
+        failed.push({ path: '(第 ' + (bi + 1) + ' 批，' + err.message + ')' });
+        next(bi + 1);  // 单批失败不阻断后续批次
+      });
+    })(0);
+
+    function finish() {
+      // 移除已删除的行；组内剩 <2 个文件则整组移除
+      deleted.forEach(function (p) {
         var row = root.querySelector('.dup-row[data-path="' + CSS.escape(p) + '"]');
         if (row) {
           var group = row.closest('.dup-group');
@@ -239,20 +259,17 @@
       });
       var msg = $('#dup-result-msg');
       msg.hidden = false;
-      if (res.failed && res.failed.length) {
+      if (failed.length) {
         msg.className = 'dup-result-msg dup-msg-error';
-        msg.textContent = '已删除 ' + res.deleted.length + ' 个，失败 ' + res.failed.length +
-          ' 个：' + res.failed.slice(0, 3).map(function (f) { return f.path; }).join('；');
+        msg.textContent = '已删除 ' + deleted.length + ' 个，失败 ' + failed.length +
+          ' 项：' + failed.slice(0, 3).map(function (f) { return f.path; }).join('；');
       } else {
         msg.className = 'dup-result-msg';
-        msg.textContent = '已删除 ' + res.deleted.length + ' 个文件（在回收站中，可恢复）';
+        msg.textContent = '已删除 ' + deleted.length + ' 个文件（在回收站中，可恢复）';
       }
       setTimeout(function () { msg.hidden = true; }, 8000);
       updateSummary();
-    }).catch(function (err) {
-      alert('删除失败：' + err.message);
-      btn.disabled = false;
-    });
+    }
   });
 
   updateSummary();

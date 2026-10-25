@@ -13,6 +13,8 @@ if not exist ".venv-build\Scripts\python.exe" (
 )
 
 echo [2/3] Cleaning old build...
+rem running instance locks the exe - stop it before rebuilding
+taskkill /f /im DiskSentry.exe >nul 2>&1
 if exist "build" rmdir /s /q "build"
 if exist "dist" rmdir /s /q "dist"
 

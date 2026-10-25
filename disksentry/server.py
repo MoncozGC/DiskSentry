@@ -87,7 +87,9 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            if length > 65536:
+            # 批量删除的路径列表可能很大（数千个长路径，JSON 转义反斜杠翻倍），单独放宽
+            limit = 5 * 1024 * 1024 if path == "/api/dup/delete" else 1024 * 1024
+            if length > limit:
                 return self._error(413, "请求体过大")
             body = json.loads(self.rfile.read(length) or b"{}")
             if path == "/api/config":

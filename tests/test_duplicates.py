@@ -147,6 +147,14 @@ class DupApiTest(unittest.TestCase):
         except urllib.error.HTTPError as e:
             self.assertEqual(e.code, 400)
 
+    def test_delete_accepts_large_body(self):
+        """批量删除路径列表超过 64KB（历史 bug 曾按 413 拒绝）。"""
+        paths = [f"C:\\nonexistent\\{'很长的目录名' * 6}\\file_{i}.dat"
+                 for i in range(600)]
+        code, res = self.request("/api/dup/delete", {"paths": paths})
+        self.assertEqual(code, 200)
+        self.assertEqual(len(res["failed"]), 600)  # 路径不存在 → 全部失败但请求被接受
+
 
 if __name__ == "__main__":
     unittest.main()
