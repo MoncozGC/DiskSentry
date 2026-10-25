@@ -176,8 +176,13 @@ class Handler(BaseHTTPRequestHandler):
     def _summary(self, conn, hours, params):
         since = time.time() - hours * 3600
         root = params.get("root", [None])[0]
+        try:
+            topn = int(params.get("topn", ["8"])[0])
+        except ValueError:
+            raise ValueError("topn 必须是整数")
+        topn = max(1, min(topn, 50))
         deltas = store.window_deltas(conn, since)
-        dirs, files = store.top_dirs(conn, since, topn=8, root=root)
+        dirs, files = store.top_dirs(conn, since, topn=topn, root=root)
         changes = store.recent_changes(conn, since, order="ts", limit=50, root=root)
         return {"window_hours": hours,
                 "deltas": deltas,

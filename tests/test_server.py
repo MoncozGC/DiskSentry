@@ -111,6 +111,17 @@ class ServerTest(unittest.TestCase):
         deltas = [abs(c["delta"]) for c in data["changes"]]
         self.assertEqual(deltas, sorted(deltas, reverse=True))
 
+    def test_summary_topn_param(self):
+        data = self.get_json("/api/summary?window=24&topn=2")
+        self.assertLessEqual(len(data["top_dirs"]), 2)
+        self.assertLessEqual(len(data["top_files"]), 2)
+        # 超范围收敛到 50 而不是报错；非数字才 400
+        data = self.get_json("/api/summary?window=24&topn=99")
+        self.assertLessEqual(len(data["top_dirs"]), 50)
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.get_json("/api/summary?window=24&topn=abc")
+        self.assertEqual(ctx.exception.code, 400)
+
     def test_post_config_persists(self):
         merged = self.post_json("/api/config", {"interval_minutes": 30,
                                                 "alert_threshold_gb_per_hour": 2.5})

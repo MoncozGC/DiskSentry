@@ -78,8 +78,11 @@
         (n ? ' · ' + n.toLocaleString() + ' 项' : '');
     } else if (S.st.last_scan && S.st.last_scan.finished_at) {
       var ls = S.st.last_scan;
-      txt = '上次扫描 ' + agoStr(ls.finished_at) +
-        (ls.status === 'error' ? ' · 失败' : '') +
+      var t = new Date(ls.finished_at * 1000);
+      var tLabel = (Date.now() - ls.finished_at * 1000 < 86400 * 1000)
+        ? timeStr(t) : dayTimeStr(t);
+      txt = '上次扫描 ' + tLabel + '（' + agoStr(ls.finished_at) + '）' +
+        (ls.status === 'error' ? ' · 失败' : ls.status === 'partial' ? ' · 部分失败' : '') +
         ' · 间隔 ' + S.st.config.interval_minutes + ' 分钟';
     } else {
       txt = '等待首次扫描…';
@@ -316,13 +319,27 @@
   }
 
   // ------------------------------------------------------------ 排行/表格
+  function legendVisible(root) {
+    return isMonitored(root) && S.visible[root] !== false;
+  }
+
   function renderRank() {
     var el = $('#dm-rank');
-    if (!S.sum || !S.sum.top_dirs.length) {
-      el.innerHTML = '<div class="dm-empty">' + (S.sum ? '暂无数据' : '加载中…') + '</div>';
+    if (!S.sum) {
+      el.innerHTML = '<div class="dm-empty">加载中…</div>';
       return;
     }
-    var items = S.sum.top_dirs;
+    // 排行跟随图例选择的盘符过滤（服务端多取一些，过滤后展示前 8）
+    var items = S.sum.top_dirs.filter(function (r) { return legendVisible(r.root); })
+      .slice(0, 8);
+    if (!S.sum.top_dirs.length) {
+      el.innerHTML = '<div class="dm-empty">暂无数据</div>';
+      return;
+    }
+    if (!items.length) {
+      el.innerHTML = '<div class="dm-empty">所选磁盘在窗口内无增长目录</div>';
+      return;
+    }
     var max = items.reduce(function (a, r) { return Math.max(a, r.delta); }, 1);
     el.innerHTML = items.map(function (r) {
       var pct = Math.max(3, Math.round(r.delta / max * 100));
@@ -372,7 +389,8 @@
     });
   }
   function loadSummary() {
-    return api('/api/summary?window=' + S.hours).then(function (sum) {
+    // topn 多取一些：前端要按图例所选盘符过滤后再展示前 8
+    return api('/api/summary?window=' + S.hours + '&topn=24').then(function (sum) {
       S.sum = sum;
       renderCards(); renderRank(); renderTable();
     });
@@ -408,6 +426,7 @@
     S.visible[r] = S.visible[r] === false;
     renderLegend();
     drawChart();
+    renderRank();
   });
 
   $('#dm-scan-btn').addEventListener('click', function () {
@@ -434,10 +453,10 @@
     if (!S.st) return;
     lastFocus = document.activeElement;
     $('#dm-disk-checks').innerHTML = S.st.available.map(function (d) {
+      var name = rootLetter(d.root) + (d.label ? ' · ' + d.label : '');
       return '<label class="dm-check"><input type="checkbox" data-root="' + d.root + '"' +
         (isMonitored(d.root) ? ' checked' : '') + '>' +
-        '<span><b class="' + colorCls(d.root) + '">' + rootLetter(d.root) + '</b> ' +
-        (d.label || '') + '</span>' +
+        '<span><b class="' + colorCls(d.root) + '">' + name + '</b></span>' +
         '<span class="dm-cap dm-num">' +
         (d.total == null ? '' : fmtBytes(d.total)) + '</span></label>';
     }).join('');

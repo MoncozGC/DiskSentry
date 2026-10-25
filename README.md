@@ -110,7 +110,7 @@ DiskSentry.spec       PyInstaller 配置
 build.bat             一键打包
 ```
 
-## 已知边界（v0.1）
+## 已知边界（v1.0）
 
 - 统计的是**文件逻辑大小**（`st_size`），与压缩盘 / sparse 文件的磁盘占用有差异
 - 硬链接会被计多次（如 WinSxS）；文件改名 / 移动会被记为"删除 + 新建"

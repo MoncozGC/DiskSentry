@@ -218,7 +218,7 @@ SELECT root, SUM(delta) FROM changes WHERE ts > strftime('%s','now','-24 hours')
 ### 5.1 跑测试
 
 ```bash
-python -m unittest discover -s tests -t . -v     # 全部 18 个，<1 秒
+python -m unittest discover -s tests -t . -v     # 全部 27 个，<1 秒
 ```
 
 三个文件各自覆盖：
