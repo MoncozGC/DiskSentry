@@ -1,0 +1,7 @@
+# 统一换行符处理：仓库内 LF，检出按平台
+* text=auto
+
+# 二进制文件
+*.db binary
+*.exe binary
+*.png binary

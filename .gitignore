@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv-build/
+*.egg-info/
+
+# PyInstaller
+build/
+dist/
+
+# 运行数据（便携模式 / 开发调试）
+data/
+data-dev/
+testdata/
+*.db
+*.db-wal
+*.db-shm
+*.log
