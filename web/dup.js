@@ -186,6 +186,30 @@
     return Math.round(v * { GB: 1024 ** 3, MB: 1024 ** 2, KB: 1024, B: 1 }[m[2]]);
   }
 
+  // ------------------------------------------------------------ 删除记录
+  function loadHistory() {
+    api('/api/deletions?limit=200').then(renderHistory).catch(function () {});
+  }
+
+  function renderHistory(d) {
+    var sub = $('#del-hist-sub'), el = $('#del-hist');
+    if (!d.total) {
+      sub.textContent = '尚未删除任何文件';
+      el.innerHTML = '<div class="dup-empty">暂无记录</div>';
+      return;
+    }
+    sub.textContent = '共删除 ' + d.total + ' 个文件 · 清理 ' + fmtBytes(d.total_size) +
+      ' · 均可从回收站恢复';
+    el.innerHTML = d.deletions.map(function (r) {
+      return '<div class="dup-row">' +
+        '<span class="dup-time dm-num dm-muted">' + fmtTime(r.ts) + '</span>' +
+        '<span class="dup-size dm-num dm-muted">' +
+          (r.size != null ? fmtBytes(r.size) : '—') + '</span>' +
+        '<span class="dup-path dm-mono" title="' + esc(r.path) + '">' + esc(r.path) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
   // ------------------------------------------------------------ 交互（事件委托）
   root.addEventListener('change', function (e) {
     if (e.target.classList.contains('dup-check')) {
@@ -271,8 +295,11 @@
       }
       setTimeout(function () { msg.hidden = true; }, 8000);
       updateSummary();
+      loadHistory();
     }
   });
+
+  loadHistory();
 
   updateSummary();
 })();

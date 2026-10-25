@@ -151,6 +151,15 @@ class DupApiTest(unittest.TestCase):
         all_paths = {f["path"] for g in result2["duplicate_groups"] for f in g["files"]}
         self.assertNotIn(victim, all_paths)
 
+        # 删除记录：可查询、带大小
+        _, hist = self.request("/api/deletions")
+        self.assertGreaterEqual(hist["total"], 1)
+        recorded = {d["path"] for d in hist["deletions"]}
+        self.assertIn(victim, recorded)
+        row = next(d for d in hist["deletions"] if d["path"] == victim)
+        self.assertIsNotNone(row["size"])
+        self.assertGreater(hist["total_size"], 0)
+
     def test_scan_bad_root(self):
         try:
             self.request("/api/dup/scan", {"root": "Z:\\no-such-dir"})

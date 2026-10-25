@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS alerts(
   root TEXT,
   message TEXT
 );
+
+CREATE TABLE IF NOT EXISTS deletions(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts REAL NOT NULL,
+  path TEXT NOT NULL,
+  size INTEGER,
+  source TEXT NOT NULL DEFAULT 'dup'
+);
+CREATE INDEX IF NOT EXISTS idx_deletions_ts ON deletions(ts);
 """
 
 # 汇总目录排行时最多读取的变更行数（防止超大窗口把内存打爆）
@@ -309,6 +318,25 @@ def recent_alerts(conn, limit: int = 10):
     rows = conn.execute(
         "SELECT ts,root,message FROM alerts ORDER BY id DESC LIMIT ?", (int(limit),))
     return [dict(r) for r in rows]
+
+
+def record_deletions(conn, items):
+    """记录删除成功的文件（items: [{path, size?, source?}]），供删除历史查询。"""
+    ts = time.time()
+    conn.executemany(
+        "INSERT INTO deletions(ts,path,size,source) VALUES(?,?,?,?)",
+        [(ts, i["path"], i.get("size"), i.get("source", "dup")) for i in items])
+    conn.commit()
+
+
+def recent_deletions(conn, limit: int = 200, offset: int = 0):
+    total = conn.execute(
+        "SELECT COUNT(*) c, IFNULL(SUM(size),0) s FROM deletions").fetchone()
+    rows = conn.execute(
+        "SELECT ts,path,size,source FROM deletions ORDER BY id DESC LIMIT ? OFFSET ?",
+        (int(limit), int(offset)))
+    return {"total": total["c"], "total_size": total["s"],
+            "deletions": [dict(r) for r in rows]}
 
 
 def db_size(db_path) -> int:

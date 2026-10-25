@@ -285,5 +285,6 @@
 #dm-root .dup-check, #dm-root .dup-gcheck{ accent-color: var(--dm-accent); width: 15px; height: 15px; flex: none; }
 #dm-root .dup-time, #dm-root .dup-size{ flex: none; font-size: 12px; }
 #dm-root .dup-empty{ color: var(--dm-muted); text-align: center; padding: 22px 0; }
+#dm-root .dup-hist-list{ max-height: 320px; overflow-y: auto; }
 #dm-root .dup-controls, #dm-root .dup-section{ margin-bottom: 0; }
 #dm-root .dup-section:last-of-type{ margin-bottom: 20px; }

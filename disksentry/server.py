@@ -160,6 +160,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not st.get("has_result"):
                     return self._error(404, "尚未完成扫描")
                 return self._json(self.ctx.dup.result)
+            if path == "/api/deletions":
+                limit = min(int(params.get("limit", ["200"])[0]), 1000)
+                offset = max(int(params.get("offset", ["0"])[0]), 0)
+                return self._json(store.recent_deletions(conn, limit, offset))
             return self._error(404, "not found")
         finally:
             conn.close()
@@ -247,8 +251,25 @@ class Handler(BaseHTTPRequestHandler):
         for p in paths:
             if not isinstance(p, str) or not os.path.isabs(p):
                 return self._error(400, f"非法路径: {p!r}")
+        # 从缓存结果里取每个文件的大小，删除成功后写入删除记录
+        sizes = {}
+        cached = self.ctx.dup.result or {}
+        for g in cached.get("duplicate_groups", []):
+            for f in g["files"]:
+                sizes[f["path"]] = g["size"]
+        for g in cached.get("similar_groups", []):
+            for f in g["files"]:
+                sizes[f["path"]] = f.get("size")
         result = duplicates.recycle_files(paths)
         self.ctx.dup.drop_deleted(result["deleted"])
+        if result["deleted"]:
+            conn = self._db()
+            try:
+                store.record_deletions(conn, [
+                    {"path": p, "size": sizes.get(p), "source": "dup"}
+                    for p in result["deleted"]])
+            finally:
+                conn.close()
         return self._json(result)
 
     def _post_dup_reveal(self, body):
