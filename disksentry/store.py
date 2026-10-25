@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS scans(
   changed INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS roots(
+  root TEXT PRIMARY KEY,
+  baseline_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS files(
   root TEXT NOT NULL,
   path TEXT NOT NULL,
@@ -130,8 +135,13 @@ def apply_scan(conn, root: str, ts: float, entries_iter):
     file_count, total_size = conn.execute(
         "SELECT COUNT(*), IFNULL(SUM(size),0) FROM temp.scan_new").fetchone()
 
+    # 基线 = "这个根扫过至少一次"（roots 表）。兼容老库：files 已有行同样视为有基线。
+    # 不能只用 files 表判断——空目录首扫 files 无行，会导致后续每次都被当作首扫、
+    # 变更永远不记录。
     has_baseline = conn.execute(
-        "SELECT 1 FROM files WHERE root=? LIMIT 1", (root,)).fetchone() is not None
+        "SELECT 1 FROM roots WHERE root=?1 UNION ALL "
+        "SELECT 1 FROM files WHERE root=?1 LIMIT 1", (root,)).fetchone() is not None
+    conn.execute("INSERT OR REPLACE INTO roots(root, baseline_at) VALUES(?,?)", (root, ts))
 
     added = removed = changed = 0
     if not has_baseline:

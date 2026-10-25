@@ -97,6 +97,20 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(len(series), 1)
         self.assertEqual([p["v"] for p in series[0]["points"]], [0, 30, -10])
 
+    def test_empty_root_baseline_then_changes(self):
+        """空目录首扫也应建立基线：之后的新文件必须记为变更。
+
+        曾有 bug：基线判定只看 files 表是否有行，空目录首扫后 files 为空，
+        导致该根每次扫描都被当作首扫，变更永远不记录。
+        """
+        r1 = store.apply_scan(self.conn, "E:\\", 1000.0, [])
+        self.assertEqual(r1["added"], 0)
+        r2 = store.apply_scan(self.conn, "E:\\", 2000.0, [(r"E:\x.txt", 10, 1.0)])
+        self.assertEqual(r2["added"], 1)
+        rows = self.conn.execute("SELECT kind,delta FROM changes").fetchall()
+        self.assertEqual([r["kind"] for r in rows], ["new"])
+        self.assertEqual(rows[0]["delta"], 10)
+
     def test_prune(self):
         conn = self.conn
         conn.execute("INSERT INTO changes(ts,root,path,kind,old_size,new_size,delta)"
