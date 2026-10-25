@@ -97,8 +97,10 @@ DiskSentry.exe config --set interval_minutes=30
 | `GET /api/dup/status` / `GET /api/dup/result` | 重复扫描进度 / 结果（分组） |
 | `POST /api/dup/delete` | 批量删除到回收站（body: {"paths": [...]}） |
 | `POST /api/dup/reveal` | 在资源管理器中定位文件 |
+| `GET /api/deletions` | 删除记录（时间/路径/大小，支持分页） |
 
-服务只绑定 127.0.0.1，不对外网暴露。
+服务只绑定 127.0.0.1，不对外网暴露。**完整参数说明与返回体结构见
+[DEVELOPMENT.md §8 Web API 参考](DEVELOPMENT.md#8-web-api-参考serverpy仅绑定-127001)**。
 
 ## 项目结构
 

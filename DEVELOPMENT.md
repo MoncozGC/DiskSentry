@@ -444,7 +444,148 @@ onefile 每次启动要自解压，onedir 则是目录形态、启动快，且 `
 
 ---
 
-## 8. 已知边界与 v2 路线
+## 8. Web API 参考（`server.py`，仅绑定 127.0.0.1）
+
+通用约定：
+
+- 请求/响应均为 JSON（UTF-8）；GET 带 query 参数，POST 为 JSON body
+- 错误统一返回 `{"error": "描述"}`，状态码：400 参数错误 / 404 不存在 / 409 冲突 / 413 请求体过大 / 500 内部错误
+- POST body 上限 1MB；仅 `/api/dup/delete` 放宽到 5MB（数千长路径场景）
+- 时间戳字段：`ts` 秒（Unix）；趋势图 `t` 为毫秒
+
+### 8.1 GET /api/state — 全局状态
+
+无参数。仪表盘每次打开与 30 秒轮询调用。
+
+| 返回字段 | 类型 | 说明 |
+| --- | --- | --- |
+| version | string | 程序版本 |
+| available | array | 固定盘 ∪ 监控根（去重）；元素 `{root, label, total, used, free}`；label 为卷标可空串；目录根的容量取所在卷 |
+| config | object | 当前完整配置（同 README §配置） |
+| scanning | object | `{running, current_root, entries, started_at, last_finished, last_error}` 增长监控扫描进度 |
+| last_scan | object\|null | 最近一轮扫描 `{id, started_at, finished_at, status(ok/partial/error/running), error, file_count, total_size, added, removed, changed}` |
+| alerts | array | 最近 10 条增长告警 `{ts, root, message}` |
+| db_size | int | 数据库文件字节数 |
+
+### 8.2 GET /api/summary?window=24&topn=8&root=C:%5C — 时间窗汇总
+
+| 参数 | 类型 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| window | int | 24 | 时间窗（小时），1~17520，非法 → 400 |
+| topn | int | 8 | 排行条数，1~50（超出收敛到 50，不报错） |
+| root | string | 全部 | 仅统计该监控根（须 URL 编码，如 `C:\` → `C:%5C`） |
+
+| 返回字段 | 类型 | 说明 |
+| --- | --- | --- |
+| deltas | object | 各根净变化字节 `{root: delta}`，可为负 |
+| top_dirs | array | 增长最快目录 `{path, root, delta}`（仅增量>0，按父目录聚合） |
+| top_files | array | 增长最快文件 `{path, root, delta}` |
+| changes | array | 按时间倒序前 50 条变更，结构见 §8.4 |
+
+### 8.3 GET /api/trend?window=24 — 各盘净增长趋势
+
+`window` 同 §8.2。返回：
+
+```json
+{ "window_hours": 24,
+  "series": [ { "root": "C:\\", "points": [ { "t": 1761400000000, "v": 5368709120 } ] } ] }
+```
+
+`points.v` = 相对窗口起点的卷用量净变化（字节，来自 disk_snapshots），`t` 毫秒时间戳。
+
+### 8.4 GET /api/changes?window=24&order=ts&limit=100&offset=0&root=… — 变更明细
+
+| 参数 | 类型 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| order | string | ts | `ts` 时间倒序 / `delta` 按 abs(delta) 倒序；其他 → 400 |
+| limit | int | 100 | ≤500 |
+| offset | int | 0 | 分页偏移 |
+
+变更对象结构（下同）：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| ts | float | 事件时间（=发现它的扫描时间，精度 ±1 个扫描间隔） |
+| root / path | string | 监控根 / 文件绝对路径 |
+| kind | string | `new` 新建 / `grow` 增长 / `shrink` 缩小 / `delete` 删除 |
+| old_size / new_size | int\|null | 变更前后大小；new 事件 old_size 为 null，delete 事件 new_size 为 null |
+| delta | int | 净变化字节（删除为负） |
+
+返回 `{"window_hours": int, "changes": [...]}`。
+
+### 8.5 POST /api/config — 修改配置
+
+body 为配置对象的部分字段（白名单同 README §配置 的键；`disks`/`exclude` 为数组）。
+原子写回 `config.json`，调度线程下一循环生效。返回 `{"ok": true, "config": {完整配置}}`。
+
+### 8.6 POST /api/scan — 触发立即扫描
+
+无 body。返回 `202 {"ok": true}`；已在扫描中 → `409 {"ok": false, "detail": "扫描进行中"}`。
+
+### 8.7 POST /api/dup/scan — 启动重复文件扫描
+
+body：`{"root": "D:\\Downloads"}`（必填，须存在，否则 400）。
+后台线程执行（大小分桶 → 部分 MD5 → 全量 MD5），返回 `202 {"ok": true}`；
+已有扫描进行中 → `409 {"ok": false, "detail": "已有扫描进行中"}`。
+
+### 8.8 GET /api/dup/status — 重复扫描进度
+
+返回 `{"running": bool, "root": string|null, "error": string|null, "has_result": bool,
+"progress": {"done": int, "total": int, "phase": "idle|hash|done|error"}}`。
+
+### 8.9 GET /api/dup/result — 重复扫描结果
+
+尚未完成 → 404；扫描失败 → 500。成功返回：
+
+```json
+{
+  "root": "D:\\Downloads", "file_count": 12345,
+  "duplicate_groups": [
+    { "size": 1048576, "md5": "…", "keep": 0,
+      "files": [ { "path": "D:\\a.docx", "mtime": 1761400000.0 } ] } ],
+  "similar_groups": [
+    { "name": "优化项目文档", "keep": 1,
+      "files": [ { "path": "…(1).docx", "size": 512000, "mtime": 1761400000.0, "md5": "…" } ] } ]
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| duplicate_groups | MD5 完全一致的组，按可释放空间（size×(n-1)）降序；files 排序：无 `(1)/副本` 后缀在前、同类时间倒序；`keep` 为保留项索引（恒 0） |
+| similar_groups | 名字归一化相同、内容不同的版本组；files 按 mtime 倒序（最新在前）；`keep` 指向无噪音后缀的最新文件（全组都有后缀时为 0） |
+| name | 归一化后的名字（已剔除 (1)/副本/数字等噪音） |
+
+### 8.10 POST /api/dup/delete — 批量删除到回收站
+
+body：`{"paths": ["绝对路径", …]}`（必填非空数组、每项绝对路径、≤5000，否则 400）。
+逐个移入回收站（SHFileOperationW，可撤销）；成功项写入 `deletions` 表并从缓存结果移除。
+
+返回：`{"deleted": ["路径"], "failed": [{"path": "路径", "error": "原因"}]}`。
+
+### 8.11 POST /api/dup/reveal — 资源管理器定位
+
+body：`{"path": "绝对路径"}`。在资源管理器中打开并选中该文件，
+返回 `{"ok": true}`；文件不存在 → 404。
+
+### 8.12 GET /api/deletions?limit=200&offset=0 — 删除记录
+
+`limit` ≤1000。返回：
+
+```json
+{ "total": 12, "total_size": 5368709120,
+  "deletions": [ { "ts": 1761400000.0, "path": "D:\\x (1).docx", "size": 512000, "source": "dup" } ] }
+```
+
+按 id 倒序；`source` 为删除来源（当前仅 `dup`，预留扩展）。
+
+### 8.13 静态资源
+
+`GET /`（仪表盘）、`/dup.html`（重复文件清理）、`/app.js`、`/dup.js`、`/style.css`、
+`/favicon.svg`、`/favicon.png`、`/vendor/d3.min.js`。
+
+---
+
+## 9. 已知边界与 v2 路线
 
 详见 README「已知边界」。摘要：硬链接重复计数、改名/移动识别（NTFS file_id）、
 目录聚合仅按直接父目录、统计逻辑大小（st_size）非磁盘占用、USN Journal 增量引擎。
