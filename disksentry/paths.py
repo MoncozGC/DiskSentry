@@ -7,13 +7,29 @@ APP_NAME = "DiskSentry"
 
 
 def default_data_dir(portable: bool = False) -> Path:
-    """数据目录：默认 %LOCALAPPDATA%\\DiskSentry；--portable 时放在程序旁边。"""
-    if portable:
-        if getattr(sys, "frozen", False):
+    """数据目录。
+
+    - 打包后的 exe（frozen）：默认就在 exe 同级的 data\\ 下（开箱便携）；
+      若该位置不可写（如放在 Program Files），自动降级到 %LOCALAPPDATA%
+    - 源码运行：默认 %LOCALAPPDATA%\\DiskSentry；加 --portable 用项目目录的 data\\
+    - 任何模式都可用 --data-dir 显式指定
+    """
+    frozen = getattr(sys, "frozen", False)
+    if frozen or portable:
+        if frozen:
             base = Path(sys.executable).resolve().parent
         else:
             base = Path(__file__).resolve().parents[1]
-        return base / "data"
+        data = base / "data"
+        try:
+            data.mkdir(parents=True, exist_ok=True)
+            probe = data / ".write-test"
+            probe.touch()
+            probe.unlink()
+            return data
+        except OSError:
+            print(f"警告: 数据目录不可写，改用 %LOCALAPPDATA%\\{APP_NAME}: {data}",
+                  file=sys.stderr)
     local = os.environ.get("LOCALAPPDATA")
     if local:
         return Path(local) / APP_NAME

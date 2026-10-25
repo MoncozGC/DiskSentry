@@ -36,11 +36,11 @@ build.bat
 脚本会自动：创建独立打包虚拟环境 `.venv-build`（不污染默认 Python 环境）→
 安装 PyInstaller → 产出单文件 **`dist\DiskSentry.exe`**。
 
-exe 的用法与源码一致：
+exe 的用法与源码一致，**数据默认就存放在 exe 同级的 `data\` 目录**（开箱便携；
+若该目录不可写自动降级到 `%LOCALAPPDATA%\DiskSentry`）：
 
 ```bash
 DiskSentry.exe                    # 常驻运行（默认监控所有固定磁盘）
-DiskSentry.exe --portable         # 便携模式：数据存在 exe 旁边 data\ 目录
 DiskSentry.exe scan               # 只扫一轮
 DiskSentry.exe report --hours 24  # 终端打印增长报告
 DiskSentry.exe config --set interval_minutes=30
@@ -54,7 +54,7 @@ DiskSentry.exe config --set interval_minutes=30
 | 命令 | 说明 |
 | --- | --- |
 | `run` | 常驻：调度扫描 + Web 仪表盘（默认） |
-| `run --port N --no-browser --portable` | 指定端口 / 不开浏览器 / 便携数据目录 |
+| `run --port N --no-browser` | 指定端口 / 不开浏览器（源码运行加 `--portable` 可将数据放项目 data\） |
 | `scan [--root PATH]` | 立即扫一轮（可临时指定根） |
 | `report --hours 24 --top 15` | 打印时间窗内增长报告 |
 | `config [--set key=value]` | 查看 / 修改配置 |
@@ -63,7 +63,8 @@ DiskSentry.exe config --set interval_minutes=30
 
 ## 配置
 
-位置：`%LOCALAPPDATA%\DiskSentry\config.json`（便携模式为 exe 旁 `data\config.json`）。
+位置：**exe 版在 exe 同级 `data\config.json`**；源码运行默认
+`%LOCALAPPDATA%\DiskSentry\config.json`（源码加 `--portable` 则用项目目录 `data\`）。
 通常直接在网页右上角 ⚙ 设置对话框里改即可。
 
 ```json

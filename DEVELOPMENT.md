@@ -87,7 +87,10 @@ monitor/
 
 ★ 标记的是改动频率最高、最值得先读的文件。
 
-### 2.1 运行时数据目录（默认 `%LOCALAPPDATA%\DiskSentry\`）
+### 2.1 运行时数据目录
+
+- **exe 版**：默认在 **exe 同级 `data\`**（开箱便携；不可写时自动降级到 `%LOCALAPPDATA%\DiskSentry`）
+- **源码运行**：默认 `%LOCALAPPDATA%\DiskSentry\`；`--portable` 用项目目录 `data\`；`--data-dir` 显式指定
 
 | 文件 | 内容 |
 | --- | --- |

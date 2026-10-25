@@ -143,7 +143,8 @@ def main(argv=None):
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--data-dir", help="数据目录（默认 %%LOCALAPPDATA%%\\DiskSentry）")
     common.add_argument("--portable", action="store_true",
-                        help="便携模式：数据存放在程序所在目录的 data/ 下")
+                        help="便携模式（exe 版默认即是：数据存放在 exe 同级 data\\ 下；"
+                             "此参数仅对源码运行生效）")
     common.add_argument("--verbose", action="store_true")
 
     parser = argparse.ArgumentParser(
