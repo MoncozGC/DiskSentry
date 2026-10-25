@@ -13,7 +13,6 @@ import hashlib
 import logging
 import os
 import re
-import subprocess
 import threading
 
 log = logging.getLogger(__name__)
@@ -182,11 +181,19 @@ def recycle_files(paths):
 
 
 def reveal_in_explorer(path: str) -> bool:
-    """在资源管理器中打开并选中该文件。"""
+    """在资源管理器中打开并选中该文件。
+
+    用 ShellExecuteW 而不是 subprocess：explorer 的 /select 参数解析很老式，
+    subprocess 列表参数遇到带空格的路径会把整个 "/select,路径" 加引号包起来，
+    explorer 认不出导致打不开；这里手工构造 '/select,"路径"' 的规范形式。
+    """
+    SW_SHOWNORMAL = 1
     try:
-        subprocess.Popen(["explorer", f"/select,{path}"])
-        return True
-    except OSError:
+        path = os.path.abspath(path)
+        rc = ctypes.windll.shell32.ShellExecuteW(
+            None, "open", "explorer.exe", f'/select,"{path}"', None, SW_SHOWNORMAL)
+        return rc > 32
+    except Exception:
         log.warning("打开资源管理器失败: %s", path, exc_info=True)
         return False
 
