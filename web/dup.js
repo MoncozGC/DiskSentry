@@ -129,8 +129,9 @@
     dupEl.innerHTML = result.duplicate_groups.map(function (g, gi) {
       var sizeText = fmtBytes(g.size);
       var waste = g.size * (g.files.length - 1);
+      var keeper = g.keep || 0;
       var rows = g.files.map(function (f, i) {
-        return rowHtml('d' + gi, f, i > 0, i === 0, sizeText);
+        return rowHtml('d' + gi, f, i !== keeper, i === keeper, sizeText);
       }).join('');
       return '<div class="dup-group" data-gid="d' + gi + '">' +
         '<div class="dup-group-head">' +
@@ -141,14 +142,15 @@
     }).join('') || '<div class="dup-empty">没有 MD5 完全一致的文件</div>';
 
     simEl.innerHTML = result.similar_groups.map(function (g, si) {
+      var keeper = g.keep || 0;
       var rows = g.files.map(function (f, i) {
-        return rowHtml('s' + si, f, i > 0, i === 0, fmtBytes(f.size));
+        return rowHtml('s' + si, f, i !== keeper, i === keeper, fmtBytes(f.size));
       }).join('');
       return '<div class="dup-group" data-gid="s' + si + '">' +
         '<div class="dup-group-head">' +
           '<label class="dup-group-check"><input type="checkbox" class="dup-gcheck"> 全选可删</label>' +
           '<span class="dup-group-title">“' + esc(g.name) + '” · ' + g.files.length +
-          ' 个版本 · 建议保留最新（第一行）</span>' +
+          ' 个版本 · 建议保留无 (1)/副本 后缀的文件（标有"保留"）</span>' +
         '</div>' + rows + '</div>';
     }).join('') || '<div class="dup-empty">没有名字相近但内容不同的版本文件</div>';
 

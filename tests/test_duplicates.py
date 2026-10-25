@@ -54,11 +54,29 @@ class DuplicatesTest(unittest.TestCase):
 
         sim = [g for g in result["similar_groups"] if g["name"] == "报告"]
         self.assertEqual(len(sim), 1)
-        files = sim[0]["files"]
+        g = sim[0]
+        files = g["files"]
         self.assertEqual(len(files), 2)
-        # 按时间倒序：新文件在前
+        # 展示顺序按时间倒序：新文件在前
         self.assertTrue(files[0]["mtime"] > files[1]["mtime"])
         self.assertEqual(files[0]["path"], str(self.base / "报告 (1).txt"))
+        # 保留项优先选无 (1)/副本 后缀的原始文件，而不是最新的带后缀文件
+        self.assertEqual(files[g["keep"]]["path"], str(self.base / "报告.txt"))
+
+    def test_keeper_prefers_clean_name(self):
+        """完全重复组：带 (1) 后缀的更新副本不应作为保留项。"""
+        clean = self.base / "优化项目文档.docx"
+        noisy = self.base / "优化项目文档(1).docx"
+        clean.write_bytes(b"same-content")
+        noisy.write_bytes(b"same-content")
+        import os
+        t_new = time.time() + 3600  # 带后缀的反而更新
+        os.utime(noisy, (t_new, t_new))
+        result = duplicates.scan_directory(str(self.base))
+        group = next(g for g in result["duplicate_groups"]
+                     if any("优化项目文档" in f["path"] for f in g["files"]))
+        self.assertEqual(group["files"][group["keep"]]["path"], str(clean))
+        self.assertEqual(group["files"][0]["path"], str(clean))
 
     def test_identical_content_not_in_similar(self):
         """内容完全一致的同名噪音文件不应出现在"同名版本"里（已在完全重复中）。"""

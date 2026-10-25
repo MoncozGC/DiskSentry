@@ -25,6 +25,13 @@ _NOISE = re.compile(
     r"[\s\-_.·]+|\(\d+\)|（\d+）|\[\d+\]|【\d+】|副本|拷贝|copy|final|最终|新|\d+",
     re.IGNORECASE)
 
+# 下载重名后缀（"(1)"/"- 副本"/"copy" 等）：保留项应优先选不带后缀的原始文件名
+_NOISE_MARK = re.compile(r"\(\d+\)|（\d+）|\[\d+\]|【\d+】|副本|拷贝|\bcopy\b", re.IGNORECASE)
+
+
+def _has_noise(path: str) -> bool:
+    return bool(_NOISE_MARK.search(os.path.basename(path)))
+
 
 def norm_stem(filename: str) -> str:
     """文件名归一化：'照片 (1).jpg' / '照片 - 副本.jpg' -> '照片'。"""
@@ -96,10 +103,12 @@ def scan_directory(root: str, progress_cb=None):
     if progress_cb:
         progress_cb(total, total, "hash")
 
+    # 完全重复组排序：无噪音后缀的排前（作为保留项），同类内按时间倒序
+    for members in dup_map.values():
+        members.sort(key=lambda x: (_has_noise(x[0]), -x[1]))
     duplicate_groups = [
-        {"size": size, "md5": md5,
-         "files": [{"path": p, "mtime": t} for p, t in
-                   sorted(members, key=lambda x: -x[1])]}
+        {"size": size, "md5": md5, "keep": 0,
+         "files": [{"path": p, "mtime": t} for p, t in members]}
         for (md5, size), members in dup_map.items() if len(members) > 1
     ]
     # 按可释放空间排序：每组冗余 = size * (n-1)
@@ -127,8 +136,10 @@ def scan_directory(root: str, progress_cb=None):
             resolved.append({"path": path, "size": size, "mtime": mtime, "md5": digest})
         if len(resolved) < 2 or len({m["md5"] for m in resolved}) < 2:
             continue  # 内容完全一致 → 已在完全重复分组
-        resolved.sort(key=lambda m: -m["mtime"])
-        similar_groups.append({"name": stem, "files": resolved})
+        resolved.sort(key=lambda m: -m["mtime"])  # 展示顺序：时间倒序（最新在前）
+        # 保留项：优先无噪音后缀的（其中取最新），否则最新
+        keep = next((i for i, m in enumerate(resolved) if not _has_noise(m["path"])), 0)
+        similar_groups.append({"name": stem, "keep": keep, "files": resolved})
     similar_groups.sort(key=lambda g: -len(g["files"]))
 
     return {"root": root, "file_count": len(files),
@@ -255,6 +266,7 @@ class DupScanManager:
                 for g in r[key]:
                     g["files"] = [f for f in g["files"] if f["path"] not in gone]
                     if len(g["files"]) >= (2 if key == "duplicate_groups" else 1):
+                        g["keep"] = min(g.get("keep", 0), len(g["files"]) - 1)
                         kept.append(g)
                 r[key] = kept
 

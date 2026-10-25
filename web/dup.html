@@ -24,7 +24,7 @@
     <button type="button" class="dm-btn dm-btn-primary" id="dup-scan-btn">扫描重复文件</button>
   </div>
   <div class="dup-hint">对比策略：MD5 一致 → 完全重复；文件名相近但内容不同 → 同名版本（按时间排序）。
-    删除均进<b>回收站</b>，可随时恢复。已自动勾选建议删除项（每组保留最新修改的文件），请确认后再执行删除。</div>
+    删除均进<b>回收站</b>，可随时恢复。已自动勾选建议删除项（每组保留<b>无 (1)/副本 后缀</b>的文件，都没有时保留最新），请确认后再执行删除。</div>
   <div class="dm-status dup-progress" id="dup-progress" hidden aria-live="polite">
     <span class="dm-status-dot"></span><span id="dup-progress-text"></span>
   </div>
