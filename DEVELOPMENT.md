@@ -37,6 +37,11 @@ DiskSentry 解决"磁盘莫名上涨，找不到是哪个文件导致的"这个�
 | 增长告警（GB/小时阈值） | `scheduler.py::_check_alert` |
 | Web 仪表盘：趋势图/排行/明细表/设置对话框 | `web/` + `server.py` |
 | CLI：run / scan / report / config | `__main__.py` |
+
+**性能参考（量级，以实测为准）**：扫描用 `os.scandir`（列目录自带元数据，无需逐文件
+stat），SSD 全盘（百万级文件）典型分钟级；差分在 SQLite 库内集合运算完成，常态秒级；
+数据库体积约为每文件数百字节（files+changes 两表）；重复文件扫描的耗时集中在全量
+MD5（受磁盘顺序读速限制），大小分桶已排除绝大多数文件。
 | 低负载保证：后台优先级 + 可选空闲扫描 + 数据保留策略 | `winutil.py` / `scheduler.py` |
 
 ---
@@ -337,6 +342,15 @@ python -m unittest discover -s tests -t . -v     # 全部 34 个，<2 秒
 4. 设置对话框取消勾选一块盘 → 保存 → 该卡片变"未监控"、图表少一条线
 5. `build.bat` → `dist\DiskSentry.exe` 裸双击启动正常
 6. `python -m unittest discover -s tests -t .` 全绿
+
+### 5.4 发版流程
+
+1. 测试全绿 + §5.3 手动验收清单过一遍
+2. 更新 `disksentry/__init__.py` 版本号与 `CHANGELOG.md`，重新打包并冒烟
+   （`dist\DiskSentry.exe --version`）
+3. 提交并打 tag：`git tag -a v1.x.0 -m "DiskSentry v1.x.0" && git push --tags`
+4. GitHub Releases：新建 Release 关联 tag，正文贴 CHANGELOG 对应段落，
+   **手动上传 `dist\DiskSentry.exe` 作为附件**（exe 不入库）
 
 ---
 
